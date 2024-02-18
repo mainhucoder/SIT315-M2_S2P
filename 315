@@ -1,0 +1,101 @@
+#include <chrono>
+#include <cstdlib>
+#include <iostream>
+#include <thread> // Include thread library for parallelization
+#include <vector>
+#include <time.h>
+
+using namespace std::chrono;
+using namespace std;
+
+// Function to fill an array with random integers between 0 and 99
+void randomVector(int vector[], int size) {
+    for (int i = 0; i < size; i++) {
+        vector[i] = rand() % 100;
+    }
+}
+
+// Function to compute element-wise addition of two arrays in parallel
+void parallelAddition(int v1[], int v2[], int v3[], int size, int start, int end) {
+    for (int i = start; i < end; i++) {
+        v3[i] = v1[i] + v2[i];
+    }
+}
+
+int main() {
+    unsigned long size = 100000000; // Size of the arrays
+    srand(time(0)); // Seed for random number generation
+
+    // Pointer declarations for three arrays
+    int *v1, *v2, *v3;
+
+    auto startSeq = high_resolution_clock::now(); // Start time for sequential version
+
+    // Memory allocation for the arrays
+    v1 = (int *)malloc(size * sizeof(int));
+    v2 = (int *)malloc(size * sizeof(int));
+    v3 = (int *)malloc(size * sizeof(int));
+
+    // Fill arrays v1 and v2 with random numbers
+    randomVector(v1, size);
+    randomVector(v2, size);
+
+    // Element-wise addition of arrays v1 and v2, result stored in v3
+    for (int i = 0; i < size; i++) {
+        v3[i] = v1[i] + v2[i];
+    }
+
+    auto stopSeq = high_resolution_clock::now(); // Stop time for sequential version
+    auto durationSeq = duration_cast<microseconds>(stopSeq - startSeq); // Calculate duration for sequential version
+
+    // Output the duration of execution for sequential version
+    cout << "Sequential version: " << durationSeq.count() << " microseconds" << endl;
+
+    free(v1);
+    free(v2);
+    free(v3);
+
+    auto startPar = high_resolution_clock::now(); // Start time for parallel version
+
+    // Memory allocation for the arrays
+    v1 = (int *)malloc(size * sizeof(int));
+    v2 = (int *)malloc(size * sizeof(int));
+    v3 = (int *)malloc(size * sizeof(int));
+
+    // Fill arrays v1 and v2 with random numbers
+    randomVector(v1, size);
+    randomVector(v2, size);
+
+    // Parallelizable task: Element-wise addition of arrays v1 and v2
+    int numThreads = thread::hardware_concurrency();
+    vector<thread> threads;
+    int chunkSize = size / numThreads;
+
+    // Partition the work and create threads
+    for (int i = 0; i < numThreads; i++) {
+        int startIdx = i * chunkSize;
+        int endIdx = (i == numThreads - 1) ? size : (i + 1) * chunkSize;
+        threads.push_back(thread(parallelAddition, v1, v2, v3, size, startIdx, endIdx));
+    }
+
+    // Join the threads
+    for (int i = 0; i < numThreads; i++) {
+        threads[i].join();
+    }
+
+    auto stopPar = high_resolution_clock::now(); // Stop time for parallel version
+    auto durationPar = duration_cast<microseconds>(stopPar - startPar); // Calculate duration for parallel version
+
+    // Output the duration of execution for parallel version
+    cout << "Parallel version: " << durationPar.count() << " microseconds" << endl;
+
+    free(v1);
+    free(v2);
+    free(v3);
+
+    // Calculate speedup
+    double speedup = (double)durationSeq.count() / durationPar.count();
+    cout << "Speedup: " << speedup << endl;
+
+    return 0;
+}
